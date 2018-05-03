@@ -3,23 +3,31 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>https://fetchadd.github.io/posts/my-first-post/</loc>
+    <loc>https://fetchadd.github.io/blog/2018/05/my-first-post/</loc>
     <lastmod>2018-05-02T19:43:55+08:00</lastmod>
   </url>
   
   <url>
-    <loc>https://fetchadd.github.io/categories/</loc>
+    <loc>https://fetchadd.github.io/blog/</loc>
+    <lastmod>2018-05-02T19:43:55+08:00</lastmod>
     <priority>0</priority>
   </url>
   
   <url>
-    <loc>https://fetchadd.github.io/posts/</loc>
+    <loc>https://fetchadd.github.io/tags/hello/</loc>
     <lastmod>2018-05-02T19:43:55+08:00</lastmod>
     <priority>0</priority>
   </url>
   
   <url>
     <loc>https://fetchadd.github.io/tags/</loc>
+    <lastmod>2018-05-02T19:43:55+08:00</lastmod>
+    <priority>0</priority>
+  </url>
+  
+  <url>
+    <loc>https://fetchadd.github.io/tags/test/</loc>
+    <lastmod>2018-05-02T19:43:55+08:00</lastmod>
     <priority>0</priority>
   </url>
   

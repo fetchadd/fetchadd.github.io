@@ -6,10 +6,19 @@
     <description>Recent content in Blogs on study &amp; create</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Wed, 02 May 2018 19:43:55 +0800</lastBuildDate>
+    <lastBuildDate>Thu, 24 May 2018 17:59:04 +0800</lastBuildDate>
     
 	<atom:link href="https://fetchadd.github.io/blog/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>Tcp协议</title>
+      <link>https://fetchadd.github.io/blog/2018/05/tcp%E5%8D%8F%E8%AE%AE/</link>
+      <pubDate>Thu, 24 May 2018 17:59:04 +0800</pubDate>
+      
+      <guid>https://fetchadd.github.io/blog/2018/05/tcp%E5%8D%8F%E8%AE%AE/</guid>
+      <description>close_wait state explain:</description>
+    </item>
     
     <item>
       <title>程序员的自我修养</title>

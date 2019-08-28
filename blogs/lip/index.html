@@ -137,30 +137,121 @@
         </div>
     </header>
 
-    <h1 id="antlr3zhong-de-shu-wen-fa">antlr3中的树文法</h1>
-<h1 id="antlr4zhong-shu-wen-fa-ti-dai-fang-an">antlr4中树文法替代方案</h1>
+    <p><a href="https://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X">&quot;编程语言实现模式&quot;</a>讲解了构建语言应用所需的实用型编译技术， 是一本不可多得的好书。唯一遗憾的是书中使用ANLTR3作为教程，而ANTLR4与ANTLR3相比，有很大的变化，在降低文法书写难度等方面有很大改进，不过文法与之前版本的文法并不兼容&quot;。书中从第6章起，内容都是基于ANTLR3的，所以这里尝试将书中使用ANTLR3实现的功能用ANTLR4来重构。书中的代码可以在<a href="https://pragprog.com/titles/tpdsl/source_code">这里</a>下载。</p>
+<p>本文中尝试重构的是&quot;5.3 根据文法自动生成访问器&quot;中的内容。</p>
+<h1 id="shi-yong-antlrwen-fa-gou-jian-ast">使用ANTLR文法构建AST</h1>
+<p>书中的4.4节介绍了“使用ANTLR文法构建AST”的方法。ANTLR3内置了一些辅助构建AST的功能, 在options中将output设置为AST后，ANTLR就会给每个规则方法增加返回值tree。启始规则会返回整个树的根节点。下面以5.3节中VecMath文法为例，解释说明这些文法。</p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#c82728;">//</span><span style="color:#4271ae;"> 文件名: VecMath.g
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: header
+</span><span style="color:#c82728;">grammar</span><span style="color:#4271ae;"> VecMath</span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">options </span><span style="color:#4271ae;">{output=AST;} // we want to create ASTs
+</span><span style="color:#c82728;">tokens </span><span style="color:#4271ae;">{ VEC; }       // define imaginary token for vector literal
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: header
+
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: stat
+</span><span style="color:#c82728;">stat+ </span><span style="color:#3e999f;">;                         </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> build list of stat trees
+</span><span style="color:#c82728;">ID </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> expr  -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(</span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> ID expr</span><span style="color:#111111;">)  </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> is operator subtree root
+</span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(</span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">) </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> is subtree root
+    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: stat
+	
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: expr
+</span><span style="color:#c82728;">multExpr</span><span style="color:#4271ae;"> (</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;">^ multExpr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">;     </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> is root node
+
+</span><span style="color:#c82728;">multExpr
+    </span><span style="color:#4271ae;">:   primary ((</span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#4271ae;">^</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#c82728;">^</span><span style="color:#111111;">) </span><span style="color:#c82728;">primary</span><span style="color:#111111;">)</span><span style="color:#c82728;">*</span><span style="color:#4271ae;">  // </span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#4271ae;">, </span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#4271ae;"> are roots
+    </span><span style="color:#3e999f;">;
+		    
+</span><span style="color:#c82728;">primary
+    </span><span style="color:#4271ae;">:   INT
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">ID
+    </span><span style="color:#3e999f;">|   </span><span style="color:#839c00;">&#39;[&#39;</span><span style="color:#4271ae;"> expr (</span><span style="color:#839c00;">&#39;,&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#839c00;">&#39;]&#39;</span><span style="color:#4271ae;"> -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(VEC expr+</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: expr
+
+</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">  :   </span><span style="color:#839c00;">&#39;a&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;z&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">INT</span><span style="color:#4271ae;"> :   </span><span style="color:#839c00;">&#39;0&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;9&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">WS</span><span style="color:#4271ae;">  :   (</span><span style="color:#839c00;">&#39; &#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\r&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\n&#39;</span><span style="color:#111111;">)</span><span style="color:#c82728;">+ </span><span style="color:#4271ae;">{skip();} </span><span style="color:#3e999f;">;
+</span></pre>
+<p>首先必须设置<code>optoins {output=AST;}</code>来让每个规则方法增加返回值tree, </p>
+<h1 id="antlr3zhong-de-shu-wen-fa">ANTLR3中的树文法</h1>
+<h2 id="er-ji-mu-lu">二级目录</h2>
+<h3 id="san-ji-mu-lu">三级目录</h3>
+<h4 id="si-ji-mu-lu">四级目录</h4>
+<h1 id="antlr4zhong-shu-wen-fa-ti-dai-fang-an">ANTLR4中树文法替代方案</h1>
 
 </div>
 
-<div id="blog-toc">
+<div id="toc-container">
+    <div id="blog-toc">
     <!--<div id="close-blog-toc"></div>-->
-    <ul id="main-toc-list" class="toc-list">
-        
-        <li>
-            <a href="https://fetchadd.github.io/blogs/lip/#antlr3zhong-de-shu-wen-fa">antlr3中的树文法</a>
+        <ul id="main-toc-list" class="toc-list">
             
-        </li>
-        
-        <li>
-            <a href="https://fetchadd.github.io/blogs/lip/#antlr4zhong-shu-wen-fa-ti-dai-fang-an">antlr4中树文法替代方案</a>
-            
-        </li>
-        
-    </ul>
-</div>
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlrwen-fa-gou-jian-ast">使用ANTLR文法构建AST</a>
 
-<div id="toggle-toc">
-    <<
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#antlr3zhong-de-shu-wen-fa">ANTLR3中的树文法</a>
+
+        
+            <ul class="toc-list">
+              
+                  
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#er-ji-mu-lu">二级目录</a>
+
+        
+            <ul class="toc-list">
+              
+                  
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#san-ji-mu-lu">三级目录</a>
+
+        
+    </li>
+
+              
+                  
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#si-ji-mu-lu">四级目录</a>
+
+        
+    </li>
+
+              
+            </ul>
+        
+    </li>
+
+              
+            </ul>
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#antlr4zhong-shu-wen-fa-ti-dai-fang-an">ANTLR4中树文法替代方案</a>
+
+        
+    </li>
+
+            
+        </ul>
+    </div>
+
+    <ul id="toggle-toc">
+        <li></li>
+        <li></li>
+        <li></li>
+    </ul>
 </div>
 
             </div>

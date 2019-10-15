@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <!-- Enable responsiveness on mobile devices-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <title></title>
+    <link rel="shortcut icon" type="image/x-icon" href="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;image&#x2F;favicon.ico">
+    <script type="text/javascript" src="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;js&#x2F;jquery-3.4.1.js"></script>
+
+    
+
+    <link rel="stylesheet" href="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;site.css">
+    
+</head>
+
+<body>
+<div id="container">
+    <div id="header">
+        <div id="header-content">
+            
+                
+            
+            <div id="site-logo-wrapper">
+                <a href="/"><img id="site-logo" src="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;image&#x2F;rust-logo-blk.png"></a>
+            </div>
+
+            <ul id="main-menu">
+                
+                    
+                        
+    
+        <li class="main-menu-item">
+            
+                
+            
+
+            
+
+            <a href=https:&#x2F;&#x2F;fetchadd.github.io&#x2F;blogs&#x2F;
+                       
+                           class="current"
+                        >
+
+                Blogs
+            </a>
+        </li>
+    
+
+                    
+                        
+    
+        <li class="main-menu-item">
+            
+                
+            
+
+            
+
+            <a href=&#x2F;categories
+                        >
+
+                Categories
+            </a>
+        </li>
+    
+
+                    
+                        
+    
+        <li class="main-menu-item">
+            
+                
+            
+
+            
+
+            <a href=https:&#x2F;&#x2F;fetchadd.github.io&#x2F;archives&#x2F;
+                        >
+
+                Archives
+            </a>
+        </li>
+    
+
+                    
+                        
+    
+        <li class="main-menu-item">
+            
+                
+            
+
+            
+
+            <a href=https:&#x2F;&#x2F;fetchadd.github.io&#x2F;about&#x2F;
+                        >
+
+                About
+            </a>
+        </li>
+    
+
+                    
+                
+            </ul>
+
+            <div id="menu-padding"></div>
+
+            <div class="search-container">
+                <input id="search" type="search" placeholder="Search">
+
+                <div class="search-result">
+                    <div class="search-result-items"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="content-container">
+            <div id="content">
+            
+<div id="blog-content">
+    
+    <header class="blog-header">
+        <h1 class="blog-title">
+            <a href="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;blogs&#x2F;lip&#x2F;">笔记: 编程语言实现模式-树文法</a>
+        </h1>
+        <div class="blog-meta">
+            
+                <span class="blog-time">2019-08-27</span>
+            
+
+            
+        </div>
+    </header>
+
+    <p><a href="https://www.amazon.com/Language-Implementation-Patterns-Domain-Specific-Programming/dp/193435645X">&quot;编程语言实现模式&quot;</a>讲解了构建语言应用所需的实用型编译技术， 是一本不可多得的好书。唯一遗憾的是书中使用ANLTR3作为教程。而ANTLR4与ANTLR3相比有很大的变化，在降低文法书写难度等方面有很大改进，不过文法与之前版本的文法并不兼容&quot;。书中从第6章起，内容都是基于ANTLR3的，所以这里尝试将书中使用ANTLR3实现的功能用ANTLR4来重构。书中的代码可以在<a href="https://pragprog.com/titles/tpdsl/source_code">这里</a>下载, 本文中使用到的所有代码都可以在书中的代码找到。</p>
+<p>本文中尝试重构的是&quot;5.3 根据文法自动生成访问器&quot;中的内容。</p>
+<h1 id="shi-yong-antlr3wen-fa-gou-jian-ast">使用ANTLR3文法构建AST</h1>
+<h2 id="antlr3de-pu-tong-wen-fa-gui-ze">ANTLR3的普通文法规则</h2>
+<p>书中的4.4节介绍了“使用ANTLR文法构建AST”的方法。在ANTLR3中，如果不使用树文法或语法动作, 是无法创建AST的，只能生成一个验证词法和语法是否正确的解析器。以下面的ANTLR3文法为例，在文法产生的<a href="https://fetchadd.github.io/blogs/lip/VecMathParser.java">Parser</a>中, 每条规则对应的函数返回值为void, 如<code>public final void prog() throws RecognitionException</code>, 这时Parser只能验证输入是否合乎语法规则，做不了其他事情。 想要生成AST的话，就要使用树文法了(当然，不嫌麻烦的话使用规则动作也行)。</p>
+<p><em>VecMath文法</em></p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#c82728;">//</span><span style="color:#4271ae;"> filename: IR/Vec/VecMath.g
+</span><span style="color:#c82728;">grammar</span><span style="color:#4271ae;"> VecMath</span><span style="color:#3e999f;">;
+
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: stat
+</span><span style="color:#c82728;">prog</span><span style="color:#4271ae;"> : stat+ </span><span style="color:#3e999f;">;    </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> match multiple statements
+</span><span style="color:#c82728;">stat:</span><span style="color:#4271ae;"> ID </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> expr     // match an assignment like </span><span style="color:#839c00;">&quot;x=3+4&quot;
+    </span><span style="color:#3e999f;">| </span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr    // match a print statement like </span><span style="color:#839c00;">&quot;print 4&quot;
+    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: stat
+		
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: expr
+	</span><span style="color:#c82728;">expr:</span><span style="color:#4271ae;">   multExpr (</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> multExpr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">;       </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> E.g., </span><span style="color:#839c00;">&quot;3*4 + 9&quot;
+</span><span style="color:#c82728;">multExpr:</span><span style="color:#4271ae;"> primary ((</span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#111111;">) </span><span style="color:#c82728;">primary</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">; </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> E.g., </span><span style="color:#839c00;">&quot;3*4&quot;
+</span><span style="color:#c82728;">primary
+        </span><span style="color:#4271ae;">:   INT                              // any integer
+	    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">                               // any variable name
+	    </span><span style="color:#3e999f;">|   </span><span style="color:#839c00;">&#39;[&#39;</span><span style="color:#4271ae;"> expr (</span><span style="color:#839c00;">&#39;,&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#839c00;">&#39;]&#39;</span><span style="color:#4271ae;">        // vector literal</span><span style="color:#3e999f;">; </span><span style="color:#c82728;">E.g. </span><span style="color:#839c00;">&quot;[1,2,3]&quot;
+	    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: expr
+						
+</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">  :   </span><span style="color:#839c00;">&#39;a&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;z&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">INT</span><span style="color:#4271ae;"> :   </span><span style="color:#839c00;">&#39;0&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;9&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">WS</span><span style="color:#4271ae;">  :   (</span><span style="color:#839c00;">&#39; &#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\r&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\n&#39;</span><span style="color:#111111;">)</span><span style="color:#c82728;">+ </span><span style="color:#4271ae;">{skip();} </span><span style="color:#3e999f;">;
+
+</span></pre><h2 id="shi-yong-antlr3wen-fa-sheng-cheng-ast">使用ANTLR3文法生成AST</h2>
+<p>ANTLR3内置了一些辅助构建AST的功能。 在options中将output设置为AST后，ANTLR就会给每个规则方法增加返回值tree, 启始规则会返回整个树的根节点。以下面4.4和5.3节中VecMath文法为例，Parser的每条规则函数会变成形如<code>public final VecMathASTParser.prog_return prog() throws RecognitionException</code>的形式, 调用Parser.prog()后，便能得到AST的root节点。这里, AST的结构是通过文法定义的。比如根据规则&quot;stat: ID '=' expr -&gt; ^('=' ID expr)&quot;, 解析器在匹配&quot;ID '=' expr&quot;语法结构时，会<strong>顺便</strong>构建根节点为'=', 子节点为'ID和'expr'的AST子树，具体的构建过程可以看一下<a href="https://fetchadd.github.io/blogs/lip/VecMathASTParser.java">VecMathASTParser.java</a>代码。对于下面的&quot;VecMath输入&quot;, VecMathAST文法构建出的AST如图1所示。</p>
+<p><em>VecMath输入</em></p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#111111;">x = 3+4
+print x * [2, 3, 4]
+</span></pre><table><thead><tr><th align="center"></th></tr></thead><tbody>
+<tr><td align="center"><img src="https://fetchadd.github.io/blogs/lip/ast.png" alt="AST" /></td></tr>
+<tr><td align="center"><em>图1</em></td></tr>
+</tbody></table>
+<p><em>VecMathAST文法</em></p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#c82728;">//</span><span style="color:#4271ae;"> 文件名: IR/Vec/VecMathAST.g
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: header
+</span><span style="color:#c82728;">grammar</span><span style="color:#4271ae;"> VecMath</span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">options </span><span style="color:#4271ae;">{output=AST;} // we want to create ASTs
+</span><span style="color:#c82728;">tokens </span><span style="color:#4271ae;">{ VEC; }       // define imaginary token for vector literal
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: header
+
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: stat
+</span><span style="color:#c82728;">prog</span><span style="color:#4271ae;"> : stat+ </span><span style="color:#3e999f;">;                         </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> build list of stat trees
+</span><span style="color:#c82728;">stat</span><span style="color:#4271ae;"> : ID </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> expr  -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(</span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> ID expr</span><span style="color:#111111;">)  </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> is operator subtree root
+     </span><span style="color:#3e999f;">| </span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(</span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">) </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> is subtree root
+     </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: stat
+	
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: expr
+</span><span style="color:#c82728;">expr</span><span style="color:#4271ae;"> : multExpr (</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;">^ multExpr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">;     </span><span style="color:#c82728;">// </span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> is root node
+
+</span><span style="color:#c82728;">multExpr 
+    </span><span style="color:#4271ae;">:   primary ((</span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#4271ae;">^</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#c82728;">^</span><span style="color:#111111;">) </span><span style="color:#c82728;">primary</span><span style="color:#111111;">)</span><span style="color:#c82728;">*</span><span style="color:#4271ae;">  // </span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#4271ae;">, </span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#4271ae;"> are roots
+    </span><span style="color:#3e999f;">;
+		    
+</span><span style="color:#c82728;">primary
+    </span><span style="color:#4271ae;">:   INT
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">ID
+    </span><span style="color:#3e999f;">|   </span><span style="color:#839c00;">&#39;[&#39;</span><span style="color:#4271ae;"> expr (</span><span style="color:#839c00;">&#39;,&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#839c00;">&#39;]&#39;</span><span style="color:#4271ae;"> -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> ^(VEC expr+</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: expr
+
+</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">  :   </span><span style="color:#839c00;">&#39;a&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;z&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">INT</span><span style="color:#4271ae;"> :   </span><span style="color:#839c00;">&#39;0&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;9&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">WS</span><span style="color:#4271ae;">  :   (</span><span style="color:#839c00;">&#39; &#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\r&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\n&#39;</span><span style="color:#111111;">)</span><span style="color:#c82728;">+ </span><span style="color:#4271ae;">{skip();} </span><span style="color:#3e999f;">;
+</span></pre><h1 id="shi-yong-antlr3shu-wen-fa-gou-jian-astwai-bu-fang-wen-zhe">使用ANTLR3树文法构建AST外部访问者</h1>
+<p>有了AST后, ANTLR3可以使用&quot;树文法&quot;来构建AST的外部访问者，所外&quot;外部访问者&quot;，是指访问过程不是在语法解析过程中进行的，而是独立于语法解析过程，是在有了AST之后，一个单独对AST进行访问的过程。 &quot;树文法&quot;与普通文法在语法规则上几乎没什么两样，区别: &quot;树文法&quot;以^开头。此外，两者产生的解析器的&quot;输入&quot;也不相同。对于普通的解析器，输入为词法解析器产生的词法token流; 而对于树文法解析器，它的输入是AST。5.3节中的树文法如下所示。有关<code>@members {}</code>等语法，请参照&quot;The Definitive ANTLR4 Reference&quot;。</p>
+<p>这里解释一下&quot;stat:   ^('=' ID  {print($ID.text+&quot; = &quot;);} expr) {print(&quot;\n&quot;);}&quot;, &quot;^('=' ID expr)&quot;这种语法: 匹配以&quot;=&quot;为根节点，以'ID'和expr为子节点的AST子树，<code>{print(ID.text+&quot; = &quot;);}</code> 为“动作”, &quot;ID {print($ID.text + &quot; = &quot;)}&quot;表示在访问完&quot;ID&quot;节点后执行&quot;{print($ID.txt + &quot; = &quot;)}&quot;。</p>
+<p><em>Print.g树文法</em></p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#c82728;">//</span><span style="color:#4271ae;"> filename: walking/tree-grammar/Print.g
+</span><span style="color:#c82728;">tree</span><span style="color:#4271ae;"> grammar Printer</span><span style="color:#3e999f;">; </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> this grammar is a tree grammar called Printer
+</span><span style="color:#c82728;">options </span><span style="color:#4271ae;">{
+    tokenVocab=VecMath;      // use token vocabulary from VecMath.g
+    ASTLabelType=CommonTree; // use homogeneous CommonTree for $</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">, etc.
+}
+</span><span style="color:#c82728;">@members </span><span style="color:#4271ae;">{ void print(String s) { System.out.print(s); } }
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: header
+		
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: prog
+</span><span style="color:#c82728;">prog:</span><span style="color:#4271ae;">   stat+ </span><span style="color:#3e999f;">; </span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> match list of statement subtrees
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> match trees like (</span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> x 1</span><span style="color:#111111;">) </span><span style="color:#c82728;">and</span><span style="color:#4271ae;"> (</span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> (</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> 3 4</span><span style="color:#111111;">))
+</span><span style="color:#c82728;">stat:</span><span style="color:#4271ae;">   ^(</span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> ID  {print($</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">.text+</span><span style="color:#839c00;">&quot; = &quot;</span><span style="color:#4271ae;">);} expr</span><span style="color:#111111;">) </span><span style="color:#c82728;">{print</span><span style="color:#4271ae;">(</span><span style="color:#839c00;">&quot;\n&quot;</span><span style="color:#111111;">)</span><span style="color:#3e999f;">;</span><span style="color:#111111;">}
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">^</span><span style="color:#4271ae;">(</span><span style="color:#839c00;">&#39;print&#39; </span><span style="color:#4271ae;">{print(</span><span style="color:#839c00;">&quot;print &quot;</span><span style="color:#4271ae;">);}       expr</span><span style="color:#111111;">) </span><span style="color:#c82728;">{print</span><span style="color:#4271ae;">(</span><span style="color:#839c00;">&quot;\n&quot;</span><span style="color:#111111;">)</span><span style="color:#3e999f;">;</span><span style="color:#111111;">}
+    </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: prog
+				
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> START: expr
+</span><span style="color:#c82728;">expr:</span><span style="color:#4271ae;">   ^(</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> expr {print(</span><span style="color:#839c00;">&quot;+&quot;</span><span style="color:#4271ae;">);} expr</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">^</span><span style="color:#4271ae;">(</span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#4271ae;"> expr {print(</span><span style="color:#839c00;">&quot;*&quot;</span><span style="color:#4271ae;">);} expr</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">^</span><span style="color:#4271ae;">(</span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#4271ae;"> expr {print(</span><span style="color:#839c00;">&quot;.&quot;</span><span style="color:#4271ae;">);} expr</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">^</span><span style="color:#4271ae;">(VEC {print(</span><span style="color:#839c00;">&quot;[&quot;</span><span style="color:#4271ae;">);} expr ({print(</span><span style="color:#839c00;">&quot;, &quot;</span><span style="color:#4271ae;">);} expr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#4271ae;">{print(</span><span style="color:#839c00;">&quot;]&quot;</span><span style="color:#4271ae;">);}</span><span style="color:#111111;">)
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">INT </span><span style="color:#4271ae;">{print($</span><span style="color:#c82728;">INT</span><span style="color:#4271ae;">.text);}
+    </span><span style="color:#3e999f;">|   </span><span style="color:#c82728;">ID  </span><span style="color:#4271ae;">{print($</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;">.text);}
+	</span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">//</span><span style="color:#4271ae;"> END: expr		
+</span></pre><h1 id="shi-yong-antlr4gou-jian-ast">使用ANTLR4构建AST</h1>
+<p>ANTLR4构建AST的方式与ANTLR4有很大的不同，ANTLR4的解析器会自动返回'语法解析树'， 解析树的节点类型含有全部的语法规则名和词法规则名。并且, ANLTR4提供了遍历解析树的‘listener’和'visitor'。想要进一步构建AST或根据解析树做其他操作的话，可以直接使用'listener'或'visitor'，在遍历解析树的同时添加自己的操作逻辑即可。</p>
+<p>注意，ANTLR4的语法文件以.g4结尾，语法和ANLTR4也不一样。具体的请参照&quot;The Definitive ANTLR 4 Reference&quot;。上面的VecMath.g用ANTLR4的语法重写之后的内容见下面&quot;VecMath ANTLR4语法&quot;。对于上节的&quot;VecMath输入&quot;, ANTLR4 解析器产生的&quot;语法解析树&quot;见图2。对比图1和图2，AST比&quot;语法解析树&quot;要简洁很多。</p>
+<p><em>VecMath ANTLR4语法</em></p>
+<pre style="background-color:#f9f9f9;">
+<span style="color:#c82728;">grammar</span><span style="color:#4271ae;"> VecMath</span><span style="color:#3e999f;">;
+
+</span><span style="color:#c82728;">prog</span><span style="color:#4271ae;">    : stat+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">stat</span><span style="color:#4271ae;">    : ID </span><span style="color:#839c00;">&#39;=&#39;</span><span style="color:#4271ae;"> expr
+        </span><span style="color:#3e999f;">| </span><span style="color:#839c00;">&#39;print&#39;</span><span style="color:#4271ae;"> expr
+        </span><span style="color:#3e999f;">;
+				
+</span><span style="color:#c82728;">expr</span><span style="color:#4271ae;">    : multExpr (</span><span style="color:#839c00;">&#39;+&#39;</span><span style="color:#4271ae;"> multExpr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">multExpr:</span><span style="color:#4271ae;"> primary ((</span><span style="color:#839c00;">&#39;*&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;.&#39;</span><span style="color:#111111;">) </span><span style="color:#c82728;">primary</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">primary</span><span style="color:#4271ae;"> : INT
+        </span><span style="color:#3e999f;">| </span><span style="color:#c82728;">ID
+        </span><span style="color:#3e999f;">| </span><span style="color:#839c00;">&#39;[&#39;</span><span style="color:#4271ae;"> expr (</span><span style="color:#839c00;">&#39;,&#39;</span><span style="color:#4271ae;"> expr</span><span style="color:#111111;">)</span><span style="color:#c82728;">* </span><span style="color:#839c00;">&#39;]&#39;
+        </span><span style="color:#3e999f;">;
+										
+</span><span style="color:#c82728;">ID</span><span style="color:#4271ae;"> : </span><span style="color:#839c00;">&#39;a&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;z&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">INT: </span><span style="color:#839c00;">&#39;0&#39;</span><span style="color:#4271ae;">..</span><span style="color:#839c00;">&#39;9&#39;</span><span style="color:#4271ae;">+ </span><span style="color:#3e999f;">;
+</span><span style="color:#c82728;">WS:</span><span style="color:#4271ae;"> (</span><span style="color:#839c00;">&#39; &#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\r&#39;</span><span style="color:#3e999f;">|</span><span style="color:#839c00;">&#39;\n&#39;</span><span style="color:#111111;">)</span><span style="color:#c82728;">+</span><span style="color:#4271ae;"> -</span><span style="color:#3e999f;">&gt;</span><span style="color:#4271ae;"> skip </span><span style="color:#3e999f;">;
+</span></pre><table><thead><tr><th align="center"></th></tr></thead><tbody>
+<tr><td align="center"><img src="prog.png" style="width: 800px;"></td></tr>
+<tr><td align="center"><em>图2</em></td></tr>
+</tbody></table>
+<h1 id="shi-yong-antlr4gou-jian-astfang-wen-zhe">使用ANTLR4构建AST访问者</h1>
+<p>ANTLR4并没有提供对AST访问的&quot;树文法&quot;，都得靠自己。</p>
+<h1 id="jie-lun">结论</h1>
+<p>所以，ANTLR4中是没有树文法的。不过有了&quot;解析树&quot;后，想要生成AST就不难了。有了AST后，想要遍历AST的话，也要充分发挥&quot;自己动手&quot;的精神，手工写遍历方法。</p>
+
+</div>
+
+<div id="toc-container">
+    <div id="blog-toc">
+    <!--<div id="close-blog-toc"></div>-->
+        <ul id="main-toc-list" class="toc-list">
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlr3wen-fa-gou-jian-ast">使用ANTLR3文法构建AST</a>
+
+        
+            <ul class="toc-list">
+              
+                  
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#antlr3de-pu-tong-wen-fa-gui-ze">ANTLR3的普通文法规则</a>
+
+        
+    </li>
+
+              
+                  
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlr3wen-fa-sheng-cheng-ast">使用ANTLR3文法生成AST</a>
+
+        
+    </li>
+
+              
+            </ul>
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlr3shu-wen-fa-gou-jian-astwai-bu-fang-wen-zhe">使用ANTLR3树文法构建AST外部访问者</a>
+
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlr4gou-jian-ast">使用ANTLR4构建AST</a>
+
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#shi-yong-antlr4gou-jian-astfang-wen-zhe">使用ANTLR4构建AST访问者</a>
+
+        
+    </li>
+
+            
+                
+    <li>
+        <a href="https://fetchadd.github.io/blogs/lip/#jie-lun">结论</a>
+
+        
+    </li>
+
+            
+        </ul>
+    </div>
+
+    <ul id="toggle-toc">
+        <li></li>
+        <li></li>
+        <li></li>
+    </ul>
+</div>
+
+<div id="pseudo-page-id" style="display: none"></div>
+
+            </div>
+    </div>
+</div>
+
+
+
+<script type="text/javascript" src="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;js&#x2F;elasticlunr.min.js"></script>
+<script type="text/javascript" src="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;search_index.zh.js"></script>
+<script type="text/javascript" src="https:&#x2F;&#x2F;fetchadd.github.io&#x2F;js&#x2F;base.js"></script>
+
+</body>
+</html>
